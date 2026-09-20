@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CYBERNETIC // Threat Command Node</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Orbitron & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=Orbitron:wght@400;600;800;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-glow: #00ff66;
+            --secondary-glow: #00e5ff;
+            --accent-glow: #ff0055;
+            --bg-dark: #030712;
+            --panel-bg: rgba(15, 23, 42, 0.75);
+            --panel-border: rgba(0, 255, 102, 0.25);
+            --font-hud: 'Orbitron', sans-serif;
+            --font-code: 'JetBrains Mono', monospace;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            font-family: var(--font-hud);
+            color: #e2e8f0;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        .font-mono-code {
+            font-family: var(--font-code);
+        }
+
+        /* Glassmorphism & Cyber HUD styling */
+        .cyber-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--panel-border);
+            box-shadow: 0 0 20px rgba(0, 255, 102, 0.08), inset 0 0 15px rgba(0, 255, 102, 0.03);
+            position: relative;
+        }
+
+        .cyber-panel::before {
+            content: '';
+            position: absolute;
+            top: -1px; left: -1px; width: 8px; height: 8px;
+            border-top: 2px solid var(--primary-glow);
+            border-left: 2px solid var(--primary-glow);
+        }
+        
+        .cyber-panel::after {
+            content: '';
+            position: absolute;
+            bottom: -1px; right: -1px; width: 8px; height: 8px;
+            border-bottom: 2px solid var(--primary-glow);
+            border-right: 2px solid var(--primary-glow);
+        }
+
+        /* Scanline Overlay Effect */
+        .scanlines {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none;
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.25) 50%
+            ), linear-gradient(
+                90deg,
+                rgba(255, 0, 0, 0.03),
+                rgba(0, 255, 0, 0.01),
+                rgba(0, 0, 255, 0.03)
+            );
+            background-size: 100% 4px, 6px 100%;
+            z-index: 40;
+            opacity: 0.6;
+        }
+
+        /* Glowing text & borders */
+        .text-glow {
+            text-shadow: 0 0 8px var(--primary-glow);
+        }
+        .text-glow-danger {
+            text-shadow: 0 0 8px var(--accent-glow);
+        }
+
+        .border-glow {
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        /* Cyberpunk Slider Style */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--primary-glow);
+            height: 6px;
+            border-radius: 3px;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 2px;
+            background: var(--primary-glow);
+            box-shadow: 0 0 10px var(--primary-glow);
+            cursor: pointer;
+        }
+
+        /* Custom scrollbar for terminal outputs */
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(3, 7, 18, 0.8);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-glow);
+            border-radius: 2px;
+        }
+
+        /* CRT Pulsing animation */
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 1; filter: drop-shadow(0 0 5px var(--primary-glow)); }
+        }
+
+        .animate-hud-pulse {
+            animation: pulse-glow 3s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="min-h-screen relative flex flex-col justify-between p-3 md:p-6 overflow-x-hidden">
+
+    <!-- Background Canvas Layers -->
+    <canvas id="matrix-canvas" class="fixed top-0 left-0 w-full h-full pointer-events-none z-0 opacity-25"></canvas>
+    <canvas id="particle-canvas" class="fixed top-0 left-0 w-full h-full pointer-events-auto z-10"></canvas>
+    
+    <!-- CRT Overlay -->
+    <div class="scanlines"></div>
+
+    <!-- Header HUD -->
+    <header class="relative z-20 cyber-panel p-4 mb-4 rounded-lg flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center space-x-3">
+            <i class="fa-solid fa-shield-halved text-2xl md:text-3xl text-emerald-400 animate-pulse"></i>
+            <div>
+                <h1 class="text-xl md:text-2xl font-black tracking-wider text-emerald-400 text-glow">
+                    CYBERNETIC // NODE-9
+                </h1>
+                <p class="text-xs font-mono-code text-emerald-500/70">DEFENSE SYSTEM STATUS: <span id="status-text" class="text-emerald-400 uppercase font-bold">OPTIMAL</span></p>
+            </div>
+        </div>
+
+        <!-- Live Telemetry Stats -->
+        <div class="flex flex-wrap items-center gap-6 text-xs font-mono-code">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-microchip text-emerald-400"></i>
+                <span class="text-slate-400">CPU:</span>
+                <span id="cpu-stat" class="text-emerald-400 font-bold">14%</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-network-wired text-emerald-400"></i>
+                <span class="text-slate-400">NODES:</span>
+                <span id="node-count-stat" class="text-emerald-400 font-bold">60</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-bolt text-emerald-400"></i>
+                <span class="text-slate-400">FPS:</span>
+                <span id="fps-stat" class="text-emerald-400 font-bold">60</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-lock text-emerald-400"></i>
+                <span class="text-slate-400">FIREWALL:</span>
+                <span id="firewall-stat" class="text-emerald-400 font-bold">ACTIVE</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Interactive Dashboard Grid -->
+    <main class="relative z-20 grid grid-cols-1 lg:grid-cols-4 gap-4 flex-grow">
+        
+        <!-- Left Panel: Simulation Controls -->
+        <section class="cyber-panel p-4 rounded-lg flex flex-col justify-between gap-4 lg:col-span-1">
+            <div>
+                <h2 class="text-sm font-bold text-emerald-400 mb-3 uppercase tracking-wider flex items-center gap-2 border-b border-emerald-500/20 pb-2">
+                    <i class="fa-solid fa-sliders"></i> System Parameters
+                </h2>
+
+                <!-- Theme Toggle -->
+                <div class="mb-4">
+                    <label class="block text-xs font-mono-code text-slate-300 mb-2">COLOR MATRIX THEME</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setTheme('emerald')" class="py-1 px-2 text-xs rounded border border-emerald-500/50 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-800/40 transition">EMERALD</button>
+                        <button onclick="setTheme('cyan')" class="py-1 px-2 text-xs rounded border border-cyan-500/50 bg-cyan-950/40 text-cyan-300 hover:bg-cyan-800/40 transition">CYAN</button>
+                        <button onclick="setTheme('crimson')" class="py-1 px-2 text-xs rounded border border-rose-500/50 bg-rose-950/40 text-rose-300 hover:bg-rose-800/40 transition">CRIMSON</button>
+                    </div>
+                </div>
+
+                <!-- Particle Count Slider -->
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs font-mono-code text-slate-300 mb-1">
+                        <span>NODE DENSITY</span>
+                        <span id="node-val" class="text-emerald-400">60</span>
+                    </div>
+                    <input id="node-slider" type="range" min="20" max="120" value="60" class="w-full">
+                </div>
+
+                <!-- Speed Slider -->
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs font-mono-code text-slate-300 mb-1">
+                        <span>VELOCITY SPEED</span>
+                        <span id="speed-val" class="text-emerald-400">1.0x</span>
+                    </div>
+                    <input id="speed-slider" type="range" min="0.2" max="3.0" step="0.1" value="1.0" class="w-full">
+                </div>
+
+                <!-- Connection Radius -->
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs font-mono-code text-slate-300 mb-1">
+                        <span>LINK DISTANCE</span>
+                        <span id="dist-val" class="text-emerald-400">140px</span>
+                    </div>
+                    <input id="dist-slider" type="range" min="60" max="250" value="140" class="w-full">
+                </div>
+
+                <!-- Web Audio Sound Toggle -->
+                <div class="mb-4 flex items-center justify-between bg-slate-900/60 p-2.5 rounded border border-slate-800">
+                    <span class="text-xs font-mono-code text-slate-300 flex items-center gap-2">
+                        <i id="audio-icon" class="fa-solid fa-volume-xmark text-slate-500"></i> SYNTH AUDIO
+                    </span>
+                    <button id="audio-btn" onclick="toggleAudio()" class="px-3 py-1 text-xs font-bold rounded bg-slate-800 text-slate-400 hover:text-white transition">OFF</button>
+                </div>
+            </div>
+
+            <!-- Trigger Security Event Buttons -->
+            <div class="space-y-2 border-t border-emerald-500/20 pt-3">
+                <button onclick="triggerCyberPulse()" class="w-full py-2 px-3 text-xs font-bold rounded bg-emerald-500/20 border border-emerald-500/60 text-emerald-300 hover:bg-emerald-500/30 hover:border-emerald-400 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-wave-square"></i> EMIT ENERGY PULSE
+                </button>
+                <button onclick="triggerMalwareIncursion()" class="w-full py-2 px-3 text-xs font-bold rounded bg-rose-500/20 border border-rose-500/60 text-rose-300 hover:bg-rose-500/30 hover:border-rose-400 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-bug"></i> SIMULATE MALWARE THREAT
+                </button>
+            </div>
+        </section>
+
+        <!-- Center Overlay Notice & Interactive Canvas Focus Zone -->
+        <section class="lg:col-span-2 relative flex flex-col justify-between pointer-events-none">
+            <div class="cyber-panel p-3 rounded-lg text-xs font-mono-code flex justify-between items-center pointer-events-auto">
+                <span class="text-slate-400 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    CANVAS INTERACTION ACTIVE: Move cursor to attract / Click to shock nodes
+                </span>
+                <span class="text-emerald-400 font-bold hidden sm:inline">[INTERACTIVE MATRIX]</span>
+            </div>
+
+            <!-- Dynamic Tactical Floating Warning -->
+            <div id="threat-alert" class="hidden my-auto mx-auto cyber-panel bg-rose-950/80 border-rose-500/80 p-6 rounded-xl text-center max-w-md animate-bounce pointer-events-auto">
+                <i class="fa-solid fa-triangle-exclamation text-4xl text-rose-500 mb-2"></i>
+                <h3 class="text-lg font-bold text-rose-400 tracking-widest">CRITICAL ANOMALY DETECTED</h3>
+                <p class="text-xs font-mono-code text-rose-200 mt-1">INTRUSION ATTEMPT ISOLATED IN SECTOR 7. ISOLATING NODES...</p>
+                <button onclick="purgeThreat()" class="mt-4 px-4 py-1.5 text-xs font-bold rounded bg-rose-600 text-white hover:bg-rose-500 transition border border-rose-300">PURGE INFECTION</button>
+            </div>
+
+            <!-- Bottom Tactical HUD Info -->
+            <div class="cyber-panel p-3 rounded-lg text-xs font-mono-code grid grid-cols-2 sm:grid-cols-4 gap-2 pointer-events-auto">
+                <div>
+                    <span class="text-slate-500 block">ENCRYPTION:</span>
+                    <span class="text-emerald-400 font-bold">AES-256-GCM</span>
+                </div>
+                <div>
+                    <span class="text-slate-500 block">PROTOCOL:</span>
+                    <span class="text-emerald-400 font-bold">P2P-MESH</span>
+                </div>
+                <div>
+                    <span class="text-slate-500 block">ACTIVE SECTOR:</span>
+                    <span class="text-emerald-400 font-bold">GRID 0x7F</span>
+                </div>
+                <div>
+                    <span class="text-slate-500 block">LATENCY:</span>
+                    <span id="latency-stat" class="text-emerald-400 font-bold">12 ms</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel: Live Security Console & Mini Firewall Node Game -->
+        <section class="cyber-panel p-4 rounded-lg flex flex-col justify-between gap-4 lg:col-span-1">
+            <div>
+                <h2 class="text-sm font-bold text-emerald-400 mb-3 uppercase tracking-wider flex items-center justify-between border-b border-emerald-500/20 pb-2">
+                    <span><i class="fa-solid fa-terminal"></i> Security Console</span>
+                    <span id="live-indicator" class="text-[10px] text-emerald-400 animate-pulse">● LIVE</span>
+                </h2>
+
+                <!-- Terminal Output Box -->
+                <div id="terminal-out" class="h-48 overflow-y-auto font-mono-code text-[11px] space-y-1.5 p-2 bg-slate-950/90 rounded border border-slate-800 text-slate-300">
+                    <p class="text-emerald-400">[SYSTEM]: Kernel initialized. Cybernetic HUD ready.</p>
+                    <p class="text-slate-400">[NET]: Listening on port 8080...</p>
+                </div>
+            </div>
+
+            <!-- Mini Firewall Defense Node Interaction -->
+            <div class="border-t border-emerald-500/20 pt-3">
+                <h3 class="text-xs font-bold text-emerald-400 mb-2 flex items-center justify-between">
+                    <span><i class="fa-solid fa-gamepad"></i> FIREWALL DEFENSE TASK</span>
+                    <span id="game-score" class="text-amber-400 font-mono-code">CLEARED: 0</span>
+                </h3>
+                <p class="text-[11px] font-mono-code text-slate-400 mb-3">Click corrupted nodes (red) before they compromise the mesh link!</p>
+                
+                <button id="start-game-btn" onclick="startFirewallTask()" class="w-full py-2 px-3 text-xs font-bold rounded bg-cyan-500/20 border border-cyan-500/60 text-cyan-300 hover:bg-cyan-500/30 hover:border-cyan-400 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-play"></i> LAUNCH NODE SWEEP
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer Status -->
+    <footer class="relative z-20 mt-4 text-center text-[10px] font-mono-code text-slate-500 flex justify-between items-center px-2">
+        <span>CYBERNETIC INTERACTIVE SYSTEM v3.8.0</span>
+        <span class="hidden sm:inline">SECURE CONNECTION // ALL TRAFFIC MONITORED</span>
+    </footer>
+
+    <!-- JavaScript Engine -->
+    <script>
+        // Global Theme Definitions
+        const themes = {
+            emerald: { primary: '#00ff66', secondary: '#00e5ff', accent: '#ff0055', bg: 'rgba(0, 255, 102, ' },
+            cyan: { primary: '#00e5ff', secondary: '#3b82f6', accent: '#ff0055', bg: 'rgba(0, 229, 255, ' },
+            crimson: { primary: '#ff0055', secondary: '#ff9900', accent: '#00e5ff', bg: 'rgba(255, 0, 85, ' }
+        };
+        let currentTheme = themes.emerald;
+
+        // Sound Effects via Web Audio API
+        let audioCtx = null;
+        let audioEnabled = false;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function toggleAudio() {
+            initAudio();
+            audioEnabled = !audioEnabled;
+            const btn = document.getElementById('audio-btn');
+            const icon = document.getElementById('audio-icon');
+            
+            if (audioEnabled) {
+                btn.innerText = 'ON';
+                btn.className = 'px-3 py-1 text-xs font-bold rounded bg-emerald-500 text-slate-950 transition';
+                icon.className = 'fa-solid fa-volume-high text-emerald-400';
+                playBeep(880, 0.1);
+                logTerminal('Audio Synthesizer: INITIALIZED', 'text-emerald-400');
+            } else {
+                btn.innerText = 'OFF';
+                btn.className = 'px-3 py-1 text-xs font-bold rounded bg-slate-800 text-slate-400 hover:text-white transition';
+                icon.className = 'fa-solid fa-volume-xmark text-slate-500';
+                logTerminal('Audio Synthesizer: DISABLED', 'text-slate-400');
+            }
+        }
+
+        function playBeep(freq = 440, type = 'sine', duration = 0.08) {
+            if (!audioEnabled || !audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {}
+        }
+
+        // Matrix Rain Canvas Setup
+        const matrixCanvas = document.getElementById('matrix-canvas');
+        const mCtx = matrixCanvas.getContext('2d');
+        let mWidth, mHeight, columns, drops;
+        const matrixChars = '01ABCDEFGHIJKLMNOPQRSTUVWXYZｦｱｳｴｵｶｷｹｺｻｼｽｾｿﾀﾂﾃ1010101';
+
+        function resizeMatrix() {
+            mWidth = matrixCanvas.width = window.innerWidth;
+            mHeight = matrixCanvas.height = window.innerHeight;
+            columns = Math.floor(mWidth / 20);
+            drops = Array(columns).fill(1);
+        }
+        window.addEventListener('resize', resizeMatrix);
+        resizeMatrix();
+
+        function drawMatrix() {
+            mCtx.fillStyle = 'rgba(3, 7, 18, 0.1)';
+            mCtx.fillRect(0, 0, mWidth, mHeight);
+            mCtx.fillStyle = currentTheme.primary;
+            mCtx.font = '14px monospace';
+
+            for (let i = 0; i < drops.length; i++) {
+                const text = matrixChars.charAt(Math.floor(Math.random() * matrixChars.length));
+                mCtx.fillText(text, i * 20, drops[i] * 20);
+                if (drops[i] * 20 > mHeight && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        }
+
+        // Particle Constellation System
+        const pCanvas = document.getElementById('particle-canvas');
+        const pCtx = pCanvas.getContext('2d');
+        let pWidth, pHeight;
+
+        function resizeParticles() {
+            pWidth = pCanvas.width = window.innerWidth;
+            pHeight = pCanvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeParticles);
+        resizeParticles();
+
+        // Particle System State
+        let nodes = [];
+        let nodeCount = 60;
+        let speedMult = 1.0;
+        let maxDist = 140;
+        let mouse = { x: null, y: null, radius: 180 };
+        let shockwave = null;
+
+        class Node {
+            constructor(x, y) {
+                this.x = x || Math.random() * pWidth;
+                this.y = y || Math.random() * pHeight;
+                this.vx = (Math.random() - 0.5) * 1.5;
+                this.vy = (Math.random() - 0.5) * 1.5;
+                this.radius = Math.random() * 2 + 2;
+                this.corrupted = false;
+                this.pulse = Math.random() * Math.PI;
+            }
+
+            update() {
+                this.x += this.vx * speedMult;
+                this.y += this.vy * speedMult;
+
+                // Bounce off canvas boundaries
+                if (this.x < 0 || this.x > pWidth) this.vx *= -1;
+                if (this.y < 0 || this.y > pHeight) this.vy *= -1;
+
+                // Mouse interaction / attraction
+                if (mouse.x !== null && mouse.y !== null) {
+                    let dx = mouse.x - this.x;
+                    let dy = mouse.y - this.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < mouse.radius) {
+                        let force = (mouse.radius - dist) / mouse.radius;
+                        this.x -= (dx / dist) * force * 2;
+                        this.y -= (dy / dist) * force * 2;
+                    }
+                }
+
+                // Shockwave reaction
+                if (shockwave) {
+                    let dx = this.x - shockwave.x;
+                    let dy = this.y - shockwave.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    if (Math.abs(dist - shockwave.radius) < 30) {
+                        this.vx += (dx / dist) * 2;
+                        this.vy += (dy / dist) * 2;
+                    }
+                }
+
+                this.pulse += 0.05;
+            }
+
+            draw() {
+                pCtx.beginPath();
+                pCtx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                
+                if (this.corrupted) {
+                    pCtx.fillStyle = currentTheme.accent;
+                    pCtx.shadowColor = currentTheme.accent;
+                } else {
+                    pCtx.fillStyle = currentTheme.primary;
+                    pCtx.shadowColor = currentTheme.primary;
+                }
+                
+                pCtx.shadowBlur = 10;
+                pCtx.fill();
+                pCtx.shadowBlur = 0; // Reset blur for performance
+            }
+        }
+
+        function initNodes() {
+            nodes = [];
+            for (let i = 0; i < nodeCount; i++) {
+                nodes.push(new Node());
+            }
+        }
+        initNodes();
+
+        function connectNodes() {
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    let dx = nodes[i].x - nodes[j].x;
+                    let dy = nodes[i].y - nodes[j].y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < maxDist) {
+                        let alpha = (1 - dist / maxDist) * 0.5;
+                        pCtx.beginPath();
+                        pCtx.moveTo(nodes[i].x, nodes[i].y);
+                        pCtx.lineTo(nodes[j].x, nodes[j].y);
+
+                        if (nodes[i].corrupted || nodes[j].corrupted) {
+                            pCtx.strokeStyle = `rgba(255, 0, 85, ${alpha})`;
+                        } else {
+                            pCtx.strokeStyle = `${currentTheme.bg}${alpha})`;
+                        }
+
+                        pCtx.lineWidth = 1;
+                        pCtx.stroke();
+                    }
+                }
+            }
+        }
+
+        // Mouse Listeners
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+
+        window.addEventListener('mouseleave', () => {
+            mouse.x = null;
+            mouse.y = null;
+        });
+
+        window.addEventListener('click', (e) => {
+            // Check if clicking on corrupted node during game
+            let clickedOnNode = false;
+            nodes.forEach(node => {
+                let dx = e.clientX - node.x;
+                let dy = e.clientY - node.y;
+                if (Math.sqrt(dx * dx + dy * dy) < 20) {
+                    if (node.corrupted) {
+                        node.corrupted = false;
+                        gameScore++;
+                        document.getElementById('game-score').innerText = `CLEARED: ${gameScore}`;
+                        playBeep(1200, 'square', 0.1);
+                        logTerminal(`[FIREWALL]: Node purified at sector (${Math.floor(node.x)}, ${Math.floor(node.y)})`, 'text-cyan-400');
+                    }
+                    clickedOnNode = true;
+                }
+            });
+
+            if (!clickedOnNode) {
+                // Emit manual shockwave pulse on click
+                shockwave = { x: e.clientX, y: e.clientY, radius: 10, maxRadius: 200 };
+                playBeep(300, 'sawtooth', 0.15);
+            }
+        });
+
+        let lastTime = performance.now();
+        let frameCount = 0;
+
+        function animate(currentTime) {
+            // Matrix Rain Frame
+            drawMatrix();
+
+            // Clear Particle Canvas
+            pCtx.clearRect(0, 0, pWidth, pHeight);
+
+            // Draw Shockwave
+            if (shockwave) {
+                pCtx.beginPath();
+                pCtx.arc(shockwave.x, shockwave.y, shockwave.radius, 0, Math.PI * 2);
+                pCtx.strokeStyle = currentTheme.primary;
+                pCtx.lineWidth = 2;
+                pCtx.stroke();
+                shockwave.radius += 8;
+                if (shockwave.radius > shockwave.maxRadius) {
+                    shockwave = null;
+                }
+            }
+
+            // Update & Render Nodes
+            connectNodes();
+            nodes.forEach(node => {
+                node.update();
+                node.draw();
+            });
+
+            // FPS Telemetry
+            frameCount++;
+            if (currentTime - lastTime >= 1000) {
+                document.getElementById('fps-stat').innerText = frameCount;
+                frameCount = 0;
+                lastTime = currentTime;
+                
+                // Randomize telemetry noise slightly
+                document.getElementById('cpu-stat').innerText = `${Math.floor(12 + Math.random() * 8)}%`;
+                document.getElementById('latency-stat').innerText = `${Math.floor(10 + Math.random() * 6)} ms`;
+            }
+
+            requestAnimationFrame(animate);
+        }
+        requestAnimationFrame(animate);
+
+        // UI Controls & Sliders
+        document.getElementById('node-slider').addEventListener('input', (e) => {
+            nodeCount = parseInt(e.target.value);
+            document.getElementById('node-val').innerText = nodeCount;
+            document.getElementById('node-count-stat').innerText = nodeCount;
+            initNodes();
+        });
+
+        document.getElementById('speed-slider').addEventListener('input', (e) => {
+            speedMult = parseFloat(e.target.value);
+            document.getElementById('speed-val').innerText = `${speedMult.toFixed(1)}x`;
+        });
+
+        document.getElementById('dist-slider').addEventListener('input', (e) => {
+            maxDist = parseInt(e.target.value);
+            document.getElementById('dist-val').innerText = `${maxDist}px`;
+        });
+
+        function setTheme(name) {
+            currentTheme = themes[name];
+            document.documentElement.style.setProperty('--primary-glow', currentTheme.primary);
+            document.documentElement.style.setProperty('--secondary-glow', currentTheme.secondary);
+            document.documentElement.style.setProperty('--accent-glow', currentTheme.accent);
+            playBeep(600, 'sine', 0.08);
+            logTerminal(`Theme matrix switched to [${name.toUpperCase()}]`, 'text-emerald-400');
+        }
+
+        function triggerCyberPulse() {
+            shockwave = { x: pWidth / 2, y: pHeight / 2, radius: 10, maxRadius: pWidth * 0.6 };
+            playBeep(500, 'triangle', 0.25);
+            logTerminal('[EVENT]: System-wide energy pulse emitted.', 'text-emerald-400');
+        }
+
+        function triggerMalwareIncursion() {
+            let infectedCount = 0;
+            nodes.forEach(node => {
+                if (Math.random() > 0.6) {
+                    node.corrupted = true;
+                    infectedCount++;
+                }
+            });
+            document.getElementById('threat-alert').classList.remove('hidden');
+            document.getElementById('status-text').innerText = 'CRITICAL';
+            document.getElementById('status-text').className = 'text-rose-500 uppercase font-bold animate-pulse';
+            playBeep(150, 'sawtooth', 0.4);
+            logTerminal(`[WARNING]: Malicious intrusion detected! ${infectedCount} nodes compromised.`, 'text-rose-400 font-bold');
+        }
+
+        function purgeThreat() {
+            nodes.forEach(node => node.corrupted = false);
+            document.getElementById('threat-alert').classList.add('hidden');
+            document.getElementById('status-text').innerText = 'OPTIMAL';
+            document.getElementById('status-text').className = 'text-emerald-400 uppercase font-bold';
+            playBeep(900, 'sine', 0.15);
+            logTerminal('[PURGE]: Threat eliminated. Mesh integrity restored.', 'text-emerald-400');
+        }
+
+        // Terminal Log Utility
+        function logTerminal(message, colorClass = 'text-slate-300') {
+            const out = document.getElementById('terminal-out');
+            const p = document.createElement('p');
+            const time = new Date().toLocaleTimeString().split(' ')[0];
+            p.className = `${colorClass} text-[11px]`;
+            p.innerText = `[${time}] ${message}`;
+            out.appendChild(p);
+            out.scrollTop = out.scrollHeight;
+        }
+
+        // Firewall Mini Game Logic
+        let gameScore = 0;
+        let gameActive = false;
+
+        function startFirewallTask() {
+            gameActive = true;
+            gameScore = 0;
+            document.getElementById('game-score').innerText = 'CLEARED: 0';
+            logTerminal('[DEFENSE TASK]: Firewall node sweep initiated. Click red targets!', 'text-cyan-400');
+            
+            // Corrupt a batch of nodes for the player to clean
+            nodes.forEach((node, idx) => {
+                if (idx % 3 === 0) node.corrupted = true;
+            });
+            
+            playBeep(750, 'square', 0.2);
+        }
+    </script>
+</body>
+</html>
